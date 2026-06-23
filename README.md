@@ -11,6 +11,10 @@ Here is what I have learned and built:
 - **OBJ Loader**: Created a custom class to parse and load Wavefront `.obj` files.
 - **Data Structures**: Implemented a 3D vector structure and arrays to store parsed face data.
 - **Wireframe Rendering**: Rendering parsed 3D faces directly onto a 2D image file.
+## Thigs that can be fixed
+Many things i left pending but it can be fixed later:
+- Program to triangulate polygons after loading
+
 
 ## Output
 
