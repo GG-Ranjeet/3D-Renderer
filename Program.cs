@@ -11,6 +11,13 @@ int height = wh;
 
 using Image<Rgba32> image = new(width, height, Color.Black);
 
+// Get the height and width and we can also use size property to grab both h and w at the same time
+// int imagePercentHeight = image.Height;
+// int imagePercentWidth = image.Width;
+
+// Console.WriteLine($"The image height is: {imagePercentHeight} pixels.");
+// Console.WriteLine($"The image width is: {imagePercentWidth} pixels.");
+
 // image[52, 23] = Color.Red;    // assign to image
 
 
@@ -44,46 +51,53 @@ void line(Vec2 v0 , Vec2 v1, Image<Rgba32> image, Color color)
 }
 
 #pragma warning disable CS8321 // Local function is declared but never used
-double slope(Vec2 a, Vec2 b)
+static double slope(Vec2 a, Vec2 b)
 {
     return (a.Y - b.Y) / (a.X - b.X);
 }
 
-void triangle(Vec2 v0, Vec2 v1, Vec2 v2,  Image<Rgba32> image, Color? color = null)
+static Vec3 Barycentric(List<Vec2> pts, Vec2 P) 
 {
-    if (v0.Y > v1.Y) (v0, v1) = (v1, v0);
-    if (v0.Y > v2.Y) (v0, v2) = (v2, v0);
-    if (v1.Y > v2.Y) (v1, v2) = (v2, v1);
-    
-    double alpha = slope(a : v2, b : v0);
-    double beta  = slope(a : v1, b : v0);
-    double gamma = slope(a : v2, b : v1);
+    Vec3 a = new(pts[1].X - pts[0].X, pts[2].X - pts[0].X, pts[0].X - P.X);
+    Vec3 b = new(pts[1].Y - pts[0].Y, pts[2].Y - pts[0].Y, pts[0].Y - P.Y);
+    Vec3 cross = a ^ b; 
+    if (cross.Z < 1) return new(-1, 1, 1); // 
+    double k = 1 / cross.Z;
+    return new(
+        1 - (cross.X + cross.Y) * k,
+        cross.Y * k,
+        cross.X * k
+        );  // ( (1 - u - v), u, v)  
+}
 
-    int total_height = (int) (v2.Y - v0.Y);
+static void triangle(List<Vec2> pts, Image<Rgba32> image, Color? color = null)
+{
+    Color chosenColor = color ?? Color.Red;
+    Rgba32 finalPixelColor = chosenColor.ToPixel<Rgba32>();
 
-    Vec2 p = new();
-    // double py = v1.Y;
-    // double px = v0.X + (py - v0.Y) / alpha;
+    Vec2 bboxMin = new(image.Width - 1, image.Height - 1);
+    Vec2 bboxMax = new(0, 0);
+    Vec2 clamp = new(image.Width - 1, image.Height - 1);
 
-    for( double y = v0.Y; y <= total_height; y++)
+    for(int i = 0; i < 3; i++)
     {
-        p.Y = y;
-        p.X = v0.X + (p.Y-v0.Y) / alpha;
-        double x;
-        if (y <= v1.Y) {
-            x = v0.X + (y - v0.Y) / beta;
-        }
-        else {
-            x = v1.X + (y - v1.Y) / gamma;
-        }
+        bboxMin.X = Math.Max(0.0, Math.Min(pts[i].X, bboxMin.X));
+        bboxMin.Y = Math.Max(0.0, Math.Min(pts[i].Y, bboxMin.Y));
 
-        Vec2 temp = new(x, y);
-
-        line(p, temp, image, Color.Cornsilk);
+        bboxMax.X = Math.Min(clamp.X, Math.Max(pts[i].X, bboxMax.X));
+        bboxMax.Y = Math.Min(clamp.Y, Math.Max(pts[i].Y, bboxMax.Y));
     }
-
-    // line(v0, v1, image, color ?? Color.White);
-    // line(v0, p, image, color ?? Color.Green);    
+    Vec2 P = new();
+    for (P.X = bboxMin.X; P.X <= bboxMax.X; P.X++)
+    {
+        for (P.Y = bboxMin.Y; P.Y <= bboxMax.Y; P.Y++)
+        {
+            Vec3 screen = Barycentric(pts, P);
+            if (screen.X < 0 || screen.Y < 0 || screen.Z < 0) continue;
+            image[(int)P.X, (int)P.Y] = finalPixelColor;
+        }
+    }
+       
 }
 
 
@@ -106,13 +120,6 @@ Vec2[] t2 = [
     new Vec2(130, 180)
 ];
 
-// triangle(t0[0], t0[1], t0[2], image, Color.Red); 
-// triangle(t1[0], t1[1], t1[2], image, Color.White); 
-// triangle(t2[0], t2[1], t2[2], image, Color.Green);
-
-// line(0, 0, 99, 80);
-// line(20, 40, 50, 30);
-
 Vec2 vecThreeToTwo(Vec3 v)
 {
     var x = (v.X + times/2) * width  / times;
@@ -120,27 +127,14 @@ Vec2 vecThreeToTwo(Vec3 v)
     return new Vec2(x, y);
 }
 
-foreach (var face in faces)
-{
-    // join vertices of the face
-    // for (var i = 0; i < 3; i++)
-    // {
-    //     var v0 = vertices[face[i]];
-    //     var v1 = vertices[face[(i + 1) % 3]];
-    //     var x0 = (v0.X + times/2) * width / times;
-    //     var y0 = (v0.Y + times/2) * height / times;
-    //     var x1 = (v1.X + times/2) * width / times;
-    //     var y1 = (v1.Y + times/2) * height / times;
-    //     line(new Vec2(x0, y0), new Vec2(x1, y1), image, Color.CornflowerBlue);
-    //     if (face[i] == 0)
-    //     Console.WriteLine($"Making line for face {face[i]}: ({x0}, {y0}) -> ({x1}, {y1}))");
-    // }
-    var v0 = vertices[face[0]];
-    var v1 = vertices[face[1]];
-    var v2 = vertices[face[2]];
+List<Vec2> pts =
+[
+    new(10, 10),
+    new(100, 30),
+    new(190, 160)
+];
 
-    triangle(vecThreeToTwo(v0), vecThreeToTwo(v1), vecThreeToTwo(v2), image, Color.CornflowerBlue);
-}
+triangle(pts, image, Color.Red);
 
 image.Mutate(x => x.Flip(FlipMode.Vertical)); 
 image.Save("output.png");
