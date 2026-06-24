@@ -11,28 +11,27 @@ Here is what I have learned and built:
 - **OBJ Loader**: Created a custom class to parse and load Wavefront `.obj` files.
 - **Data Structures**: Implemented a 3D vector structure and arrays to store parsed face data.
 - **Wireframe Rendering**: Rendering parsed 3D faces directly onto a 2D image file.
-- **Triangles and filling**: Using berycentric coordinates to find every pixel inside the triangle and fill them.
+- **Triangles and filling**: Using barycentric coordinates to find every pixel inside the triangle and fill them.
 - **Rasterization**: Rendering the triagulated mesh by using a for loop to get each faces of the mesh that is in triangle form.
 
 ## How I fill the triangle
 To efficiently render and fill triangle, algorithm uses **bounding box method** combined with **Barycentric coordinates**. 
 - Instead of checking every pixel on the image, we uses bounding box around the triangle.
 - A nested two dimensional (x, y) for loop iterates through all the pixels.
-- and uses berycentric coordinates to check if any point is negative(i.e. less than 0) then we simple continue or else we color the pixel
+- and uses barycentric coordinates to check if any point is negative(i.e. less than 0) then we simple continue or else we color the pixel
 ![Image](./ImageRef/TempImage.png)
 
 <details>
 <summary>Click to expand</summary>
+
 ```C#
 static void triangle(List<Vec2> pts, Image<Rgba32> image, Color? color = null)
 {
     Color chosenColor = color ?? Color.Red;
     Rgba32 finalPixelColor = chosenColor.ToPixel<Rgba32>();
-
     Vec2 bboxMin = new(image.Width - 1, image.Height - 1);
     Vec2 bboxMax = new(0, 0);
     Vec2 clamp = new(image.Width - 1, image.Height - 1);
-
     for(int i = 0; i < 3; i++)
     {
         bboxMin.X = Math.Max(0.0, Math.Min(pts[i].X, bboxMin.X));
@@ -41,7 +40,6 @@ static void triangle(List<Vec2> pts, Image<Rgba32> image, Color? color = null)
         bboxMax.X = Math.Min(clamp.X, Math.Max(pts[i].X, bboxMax.X));
         bboxMax.Y = Math.Min(clamp.Y, Math.Max(pts[i].Y, bboxMax.Y));
     }
-
     Vec2 P = new();
     for (P.X = bboxMin.X; P.X <= bboxMax.X; P.X++)
     {
@@ -61,6 +59,7 @@ static void triangle(List<Vec2> pts, Image<Rgba32> image, Color? color = null)
 
 <details>
 <summary>Click to to see the algorithm</summary>
+
 ```C#
 foreach(var face in faces)
 {
@@ -76,9 +75,14 @@ foreach(var face in faces)
     faceFormation.Clear();    
 }
 ```
+
 </details>
 With this program we are coloring every trianglulated faces of the mesh, hence we call this process rasterization
 
+## Some notes
+- Alignment issues can be fixed with some basic maths here.
+- Currenly only work with Wavefront object( files with .obj extension ).
+- No Automatic triangulation so I need to make that.
 
 ## Output
 
@@ -88,8 +92,6 @@ Here is the output rendered by the current code:
 
 ![Output complex Image](./output2.png)
 
+---
 
 Following tutorial by - [Dmitry V. Sokolov](https://github.com/ssloy/tinyrenderer)
-
-
-
