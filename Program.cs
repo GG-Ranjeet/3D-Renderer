@@ -5,7 +5,8 @@ using LoadObj;
 
 #pragma warning disable CS0219 // Mute the warning
 double times =5;
-int wh = 500;
+double iTimes = 1/times;
+int wh = 1000;
 int width = wh;
 int height = wh;
 
@@ -22,7 +23,7 @@ using Image<Rgba32> image = new(width, height, Color.Black);
 
 
 
-var (vertices, faces) = ObjLoader.Parse("Basic_prism.obj");
+var (vertices, faces) = ObjLoader.Parse("Basemesh.obj");
 Console.WriteLine(); 
 Console.WriteLine($"Vertices: {vertices.Count}, Faces: {faces.Count}");
 void line(Vec2 v0 , Vec2 v1, Image<Rgba32> image, Color color)
@@ -87,6 +88,7 @@ static void triangle(List<Vec2> pts, Image<Rgba32> image, Color? color = null)
         bboxMax.X = Math.Min(clamp.X, Math.Max(pts[i].X, bboxMax.X));
         bboxMax.Y = Math.Min(clamp.Y, Math.Max(pts[i].Y, bboxMax.Y));
     }
+
     Vec2 P = new();
     for (P.X = bboxMin.X; P.X <= bboxMax.X; P.X++)
     {
@@ -97,44 +99,34 @@ static void triangle(List<Vec2> pts, Image<Rgba32> image, Color? color = null)
             image[(int)P.X, (int)P.Y] = finalPixelColor;
         }
     }
-       
 }
 
+List<Vec2> faceFormation = [];
+Random random = new();
 
-
-Vec2[] t0 = [
-    new Vec2(10, 70),
-    new Vec2(50, 160),
-    new Vec2(70, 80)
-];
-
-Vec2[] t1 = [
-    new Vec2(180, 50),
-    new Vec2(50, 2),
-    new Vec2(20, 180)
-];
-
-Vec2[] t2 = [
-    new Vec2(180, 150),
-    new Vec2(120, 160),
-    new Vec2(130, 180)
-];
-
-Vec2 vecThreeToTwo(Vec3 v)
+foreach(var face in faces)
 {
-    var x = (v.X + times/2) * width  / times;
-    var y = (v.Y + times/2) * height / times;
-    return new Vec2(x, y);
+    for(int i = 0; i < 3; i++)
+    {
+        var vert = vertices[face[i]];
+        faceFormation.Add(new(
+            (vert.X + 2) * width * iTimes, 
+            (vert.Y + 2) * height* iTimes 
+            ));
+    }
+
+    triangle(faceFormation, image, Color.FromRgba(
+        (byte)random.Next(0, 256), 
+        (byte)random.Next(0, 256), 
+        (byte)random.Next(0, 256), 
+        255
+    ));
+
+    // foreach (var x in faceFormation) Console.WriteLine($"{x.X}  {x.Y}");
+    // Console.WriteLine();
+
+    faceFormation.Clear();    
 }
-
-List<Vec2> pts =
-[
-    new(10, 10),
-    new(100, 30),
-    new(190, 160)
-];
-
-triangle(pts, image, Color.Red);
 
 image.Mutate(x => x.Flip(FlipMode.Vertical)); 
-image.Save("output.png");
+image.Save("output2.png");

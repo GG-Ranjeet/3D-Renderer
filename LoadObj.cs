@@ -64,7 +64,7 @@ namespace LoadObj
                 }
                 if (parts[0] == "f")
                 {
-                    Console.WriteLine($"Parsing face: {trimmed}");
+                    // Console.WriteLine($"Parsing face: {trimmed}");
                     if (parts.Length > 4) // only support triangles for now
                     {
                         // Console.WriteLine("Warning: Only triangular faces are supported. Skipping face with " + (parts.Length - 1) + " vertices.");
