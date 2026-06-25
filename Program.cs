@@ -54,7 +54,7 @@ void outline(List<Vec2> pts, Image<Rgba32> image, Color color)
     }
 }
 
-static Vec3 Barycentric(List<Vec2> pts, Vec2 P) 
+static Vec3 Barycentric(List<Vec3> pts, Vec3 P) 
 {
     Vec3 a = new(pts[1].X - pts[0].X, pts[2].X - pts[0].X, pts[0].X - P.X);
     Vec3 b = new(pts[1].Y - pts[0].Y, pts[2].Y - pts[0].Y, pts[0].Y - P.Y);
@@ -68,7 +68,7 @@ static Vec3 Barycentric(List<Vec2> pts, Vec2 P)
         );  // ( (1 - u - v), u, v)  
 }
 
-static void triangle(List<Vec2> pts, Image<Rgba32> image, Color? color = null)
+static void triangle(List<Vec3> pts, double[,] zbuffer, Image<Rgba32> image, Color? color = null)
 {
     Color chosenColor = color ?? Color.Red;
     Rgba32 finalPixelColor = chosenColor.ToPixel<Rgba32>();
@@ -77,27 +77,42 @@ static void triangle(List<Vec2> pts, Image<Rgba32> image, Color? color = null)
     int minY = (int)Math.Max(0.0, Math.Min(pts[0].Y, Math.Min(pts[1].Y , pts[2].Y)));
     int maxX = (int)Math.Min((double)image.Width - 1, Math.Max(pts[0].X + 1, Math.Max(pts[1].X , pts[2].X)));
     int maxY = (int)Math.Min((double)image.Height - 1, Math.Max(pts[0].Y + 1, Math.Max(pts[1].Y , pts[2].Y)));
-
-    Vec2 P = new();
+    
+    Vec3 P = new();
     for (int x = minX; x <= maxX; x++)
     {
         for (int y = minY; y <= maxY; y++)
         {
             P.X = x;
             P.Y = y;
-            Vec3 screen = Barycentric(pts, P);
-            if (screen.X < 0 || screen.Y < 0 || screen.Z < 0) continue;
-            image[x, y] = finalPixelColor;
+            P.Z = 0; // Assuming a 2D projection, Z can be set to 0 or calculated based on the actual 3D coordinates
+
+            // 0 <= weights.X, weights.Y, weights.Z <= 1 
+            // and weights.X + weights.Y + weights.Z = 1
+            Vec3 weights = Barycentric(pts, P);   
+            
+            if (weights.X < 0 || weights.Y < 0 || weights.Z < 0) continue;
+            double actualZ = weights.X * pts[0].Z + weights.Y * pts[1].Z + weights.Z * pts[2].Z;
+            if (actualZ > zbuffer[x, y])
+            {
+                zbuffer[x, y] = actualZ;
+                image[x, y] = finalPixelColor;
+            }
         }
     }
 }
 
 void drawModel(List<Vec3> vertices, List<int[]> faces, Image<Rgba32> image, double intensity_m = 1.0)
 {
-    List<Vec2> faceFormation = [];
+    List<Vec3> faceFormation = [];
     Random random = new();
     Vec3 light_direction = new(0, 0, -1);
     light_direction = light_direction.Normalize();
+
+    double[,] zbuffer = new double[width, height];
+    for (int x = 0; x < width; x++)
+        for (int y = 0; y < height; y++)
+            zbuffer[x, y] = double.NegativeInfinity;
 
     foreach(var face in faces)
     {
@@ -107,7 +122,8 @@ void drawModel(List<Vec3> vertices, List<int[]> faces, Image<Rgba32> image, doub
             var vert = vertices[face[i]];
             faceFormation.Add(new(
                 (vert.X + 2) * width * iTimes, 
-                (vert.Y + 2) * height* iTimes 
+                (vert.Y + 2) * height* iTimes,
+                (vert.Z + 2) * width * iTimes
                 ));
             world_coord.Add(vert);
         }
@@ -119,7 +135,7 @@ void drawModel(List<Vec3> vertices, List<int[]> faces, Image<Rgba32> image, doub
 
         if (intensity > 0)
         {
-            triangle(faceFormation, image, Color.FromRgba(
+            triangle(faceFormation, zbuffer, image, Color.FromRgba(
                 (byte)(intensity * 255), 
                 (byte)(intensity * 255),
                 (byte)(intensity * 255),
