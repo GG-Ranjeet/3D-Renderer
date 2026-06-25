@@ -21,14 +21,27 @@ namespace LoadObj
         }
 
         public static Vec3 operator ^(Vec3 a, Vec3 b) => Cross(a, b);
+        public static Vec3 operator *(Vec3 a, double b) => new(a.X * b, a.Y * b, a.Z * b);
+        public static Vec3 operator -(Vec3 a, Vec3 b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
 
         public static double Dot(Vec3 a, Vec3 b)
         {
             return a.X * b.X + a.Y * b.Y + a.Z * b.Z;
         }
 
-        public static Vec3 operator *(Vec3 a, double b) => new(a.X * b, a.Y * b, a.Z * b);
+        public readonly double Length()
+        {
+            return Math.Sqrt(X * X + Y * Y + Z * Z);
+        }
 
+        // returns unit vector
+        public readonly Vec3 Normalize() 
+        {
+            double ilength = 1 / Length();
+
+            if (ilength == 0) return new(0, 0, 0);
+            return new(X * ilength, Y * ilength, Z * ilength);
+        }
         public override readonly string ToString() => $"({X}, {Y}, {Z})";
     }
 
@@ -36,6 +49,8 @@ namespace LoadObj
     {
         public double X = x;
         public double Y = y;
+
+        public override readonly string ToString() => $"({X}, {Y})";
     }
 
     public class ObjLoader
