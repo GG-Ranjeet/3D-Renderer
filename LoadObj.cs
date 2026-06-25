@@ -55,10 +55,17 @@ namespace LoadObj
 
     public class ObjLoader
     {
-        public static (List<Vec3> vertices, List<int[]> faces) Parse(string objPath)
+        public static (
+            List<Vec3> vertices, 
+            List<int[]> faces, 
+            List<int[]> uvIndices, 
+            List<Vec2> uv
+        ) Parse(string objPath)
         {
             var vertices = new List<Vec3>();
             var faces = new List<int[]>();
+            var uvIndices = new List<int[]>();
+            var uv = new List<Vec2>();
 
             if (!File.Exists(objPath)) throw new FileNotFoundException("Obj not found at given path");
 
@@ -87,14 +94,24 @@ namespace LoadObj
                         continue;
                     }
                     int[] idx = new int[3];
+                    int[] uvIdx = new int[3];
                     for (int i = 0; i < 3; i++)
                     {
                         idx[i] = int.Parse(parts[i+1].Split(['/'])[0]) - 1;
+                        uvIdx[i] = int.Parse(parts[i+1].Split(['/'])[1]) - 1;
                     }
                     faces.Add(idx);
-                }                
+                    uvIndices.Add(uvIdx);
+                } 
+                else if (parts[0] == "vt")
+                {
+                    uv.Add(new Vec2(
+                        double.Parse(parts[1], CultureInfo.InvariantCulture),
+                        double.Parse(parts[2], CultureInfo.InvariantCulture)
+                    ));
+                }
             }
-            return (vertices, faces);
+            return (vertices, faces, uvIndices, uv);
         }
     }
 }

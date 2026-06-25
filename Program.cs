@@ -1,28 +1,22 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.PixelFormats;
-using System.Diagnostics;
 using LoadObj;
 
 double times = 5;
 double iTimes = 1/times;
-int wh = 1000;
+int wh = 2000;
 int width = wh;
 int height = wh;
-Stopwatch sw = new();
 
 using Image<Rgba32> image = new(width, height, Color.Black);
 using Image<Rgba32> image2 = new(width, height, Color.Black);
 
-sw.Start();
-var (vertices, faces) = ObjLoader.Parse("Basic_prism.obj");
-var (vertices2, faces2) = ObjLoader.Parse("Basemesh.obj");
-sw.Stop();
-Console.WriteLine($"OBJ Load Time: {sw.ElapsedMilliseconds} ms");
-sw.Restart(); // Resets to 0 and starts again
+var (vertices, faces, uvIndices, uv) = ObjLoader.Parse("Basic_prism.obj");
+using Image<Rgba32> texture = Image.Load<Rgba32>("./ImageRef/Basic texture.png");
 
-Console.WriteLine(); 
-Console.WriteLine($"Vertices: {vertices.Count}, Faces: {faces.Count}");
+var (vertices2, faces2, uvIndices2, uv2) = ObjLoader.Parse("Basemesh.obj");
+using Image<Rgba32> texture2 = Image.Load<Rgba32>("./ImageRef/Albedo.tif");
 
 #pragma warning disable CS8321 // Local function is declared but never used
 void outline(List<Vec2> pts, Image<Rgba32> image, Color color)
@@ -68,11 +62,23 @@ static Vec3 Barycentric(List<Vec3> pts, Vec3 P)
         );  // ( (1 - u - v), u, v)  
 }
 
-static void triangle(List<Vec3> pts, double[,] zbuffer, Image<Rgba32> image, Color? color = null)
+Vec2 getUV(int[] uvIdx)
 {
-    Color chosenColor = color ?? Color.Red;
-    Rgba32 finalPixelColor = chosenColor.ToPixel<Rgba32>();
+    return new(
+        uv[uvIdx[0]].X,
+        uv[uvIdx[0]].Y
+    );
+}
 
+static void triangle(
+    List<Vec3> pts, // three points that form triangle
+    List<Vec2> uv,  // three uv coordinates for the triangle
+    double[,] zbuffer, // zbuffer for depth testing
+    Image<Rgba32> image, 
+    Image<Rgba32> texture,
+    double intensity
+)
+{
     int minX = (int)Math.Max(0.0, Math.Min(pts[0].X, Math.Min(pts[1].X , pts[2].X)));
     int minY = (int)Math.Max(0.0, Math.Min(pts[0].Y, Math.Min(pts[1].Y , pts[2].Y)));
     int maxX = (int)Math.Min((double)image.Width - 1, Math.Max(pts[0].X + 1, Math.Max(pts[1].X , pts[2].X)));
@@ -93,8 +99,27 @@ static void triangle(List<Vec3> pts, double[,] zbuffer, Image<Rgba32> image, Col
             
             if (weights.X < 0 || weights.Y < 0 || weights.Z < 0) continue;
             double actualZ = weights.X * pts[0].Z + weights.Y * pts[1].Z + weights.Z * pts[2].Z;
+
+            // Interpolate UV coordinates
+            var u = weights.X * uv[0].X + weights.Y * uv[1].X + weights.Z * uv[2].X;
+            var v = weights.X * uv[0].Y + weights.Y * uv[1].Y + weights.Z * uv[2].Y;
+
             if (actualZ > zbuffer[x, y])
             {
+                // Map UV coordinates (0 to 1 range) to texture dimensions.
+                // Note: v is typically inverted for vertical orientation (1.0 - v) depending on image format layout
+                int texX = (int)Math.Clamp(u * texture.Width, 0, texture.Width - 1);
+                int texY = (int)Math.Clamp((1.0 - v) * texture.Height, 0, texture.Height - 1);
+
+                Rgba32 texColor = texture[texX, texY];
+
+                // Apply lighting intensity
+                Rgba32 finalPixelColor = new(
+                    (byte)(texColor.R * intensity), 
+                    (byte)(texColor.G * intensity), 
+                    (byte)(texColor.B * intensity)
+                );
+                
                 zbuffer[x, y] = actualZ;
                 image[x, y] = finalPixelColor;
             }
@@ -102,10 +127,16 @@ static void triangle(List<Vec3> pts, double[,] zbuffer, Image<Rgba32> image, Col
     }
 }
 
-void drawModel(List<Vec3> vertices, List<int[]> faces, Image<Rgba32> image, double intensity_m = 1.0)
+void drawModel(
+    List<Vec3> vertices, 
+    List<int[]> faces, 
+    List<Vec2> uv,
+    List<int[]> uvIndices,
+    Image<Rgba32> image, 
+    Image<Rgba32> texture
+    )
 {
     List<Vec3> faceFormation = [];
-    Random random = new();
     Vec3 light_direction = new(0, 0, -1);
     light_direction = light_direction.Normalize();
 
@@ -114,8 +145,10 @@ void drawModel(List<Vec3> vertices, List<int[]> faces, Image<Rgba32> image, doub
         for (int y = 0; y < height; y++)
             zbuffer[x, y] = double.NegativeInfinity;
 
-    foreach(var face in faces)
+    for (int f = 0; f < faces.Count; f++)
     {
+        var face = faces[f];
+        var uvIdx = uvIndices[f];
         List<Vec3> world_coord = [];
         for(int i = 0; i < 3; i++)
         {
@@ -135,12 +168,13 @@ void drawModel(List<Vec3> vertices, List<int[]> faces, Image<Rgba32> image, doub
 
         if (intensity > 0)
         {
-            triangle(faceFormation, zbuffer, image, Color.FromRgba(
-                (byte)(intensity * 255), 
-                (byte)(intensity * 255),
-                (byte)(intensity * 255),
-                255
-            ));
+            List<Vec2> faceUvs = [
+                uv[uvIdx[0]],
+                uv[uvIdx[1]],
+                uv[uvIdx[2]]
+            ];
+
+            triangle(faceFormation, faceUvs, zbuffer, image, texture, intensity);
         }
 
         faceFormation.Clear();    
@@ -150,29 +184,11 @@ void drawModel(List<Vec3> vertices, List<int[]> faces, Image<Rgba32> image, doub
 // ----------------------------------------------------------------------------------------------------//
 
 
-sw.Stop();
-Console.WriteLine($"Other Time: {sw.ElapsedMilliseconds} ms");
-
-sw.Restart();
-
-drawModel(vertices, faces, image);
-sw.Stop();
-Console.WriteLine($"Model 1 Rendering Time: {sw.ElapsedMilliseconds} ms");
-
-sw.Restart(); // Resets to 0 and starts again
-
-drawModel(vertices2, faces2, image2, 100);
-
-sw.Stop();
-Console.WriteLine($"Model 2 Rendering Time: {sw.ElapsedMilliseconds} ms");
-
-sw.Restart(); // Resets to 0 and starts again
+drawModel(vertices, faces, uv, uvIndices, image, texture);
+drawModel(vertices2, faces2, uv2, uvIndices2, image2, texture2);
 
 image.Mutate(x => x.Flip(FlipMode.Vertical)); 
 image.Save("output.png");
 
 image2.Mutate(x => x.Flip(FlipMode.Vertical)); 
 image2.Save("output2.png");
-
-sw.Stop();
-Console.WriteLine($"Image Saving Time: {sw.ElapsedMilliseconds} ms");
