@@ -9,13 +9,13 @@ int wh = 2000;
 int width = wh;
 int height = wh;
 
-using Image<Rgba32> image = new(width, height, Color.Black);
-using Image<Rgba32> image2 = new(width, height, Color.Black);
+using Image<Rgba32> frame1 = new(width, height, Color.Black);
+using Image<Rgba32> frame2 = new(width, height, Color.Black);
 
-var (vertices, faces, uvIndices, uv) = ObjLoader.Parse("Basic_prism.obj");
+var (vertices, faces, uv, normal) = ObjLoader.Parse("Basic_prism.obj");
 using Image<Rgba32> texture = Image.Load<Rgba32>("./ImageRef/Basic texture.png");
 
-var (vertices2, faces2, uvIndices2, uv2) = ObjLoader.Parse("Basemesh.obj");
+var (vertices2, faces2, uv2, normal2) = ObjLoader.Parse("Basemesh.obj");
 using Image<Rgba32> texture2 = Image.Load<Rgba32>("./ImageRef/Albedo.tif");
 
 #pragma warning disable CS8321 // Local function is declared but never used
@@ -101,8 +101,8 @@ static void triangle(
             double actualZ = weights.X * pts[0].Z + weights.Y * pts[1].Z + weights.Z * pts[2].Z;
 
             // Interpolate UV coordinates
-            var u = weights.X * uv[0].X + weights.Y * uv[1].X + weights.Z * uv[2].X;
-            var v = weights.X * uv[0].Y + weights.Y * uv[1].Y + weights.Z * uv[2].Y;
+            var u = weights.X * uv[0].X + weights.Y * uv[2].X + weights.Z * uv[1].X;
+            var v = weights.X * uv[0].Y + weights.Y * uv[2].Y + weights.Z * uv[1].Y;
 
             if (actualZ > zbuffer[x, y])
             {
@@ -129,9 +129,9 @@ static void triangle(
 
 void drawModel(
     List<Vec3> vertices, 
-    List<int[]> faces, 
+    List<FaceVertex[]> faces, 
     List<Vec2> uv,
-    List<int[]> uvIndices,
+    List<Vec3> normal,
     Image<Rgba32> image, 
     Image<Rgba32> texture
     )
@@ -148,11 +148,10 @@ void drawModel(
     for (int f = 0; f < faces.Count; f++)
     {
         var face = faces[f];
-        var uvIdx = uvIndices[f];
         List<Vec3> world_coord = [];
         for(int i = 0; i < 3; i++)
         {
-            var vert = vertices[face[i]];
+            var vert = vertices[face[i].V];
             faceFormation.Add(new(
                 (vert.X + 2) * width * iTimes, 
                 (vert.Y + 2) * height* iTimes,
@@ -169,9 +168,9 @@ void drawModel(
         if (intensity > 0)
         {
             List<Vec2> faceUvs = [
-                uv[uvIdx[0]],
-                uv[uvIdx[1]],
-                uv[uvIdx[2]]
+                uv[face[0].Vt],
+                uv[face[1].Vt],
+                uv[face[2].Vt]
             ];
 
             triangle(faceFormation, faceUvs, zbuffer, image, texture, intensity);
@@ -184,11 +183,11 @@ void drawModel(
 // ----------------------------------------------------------------------------------------------------//
 
 
-drawModel(vertices, faces, uv, uvIndices, image, texture);
-drawModel(vertices2, faces2, uv2, uvIndices2, image2, texture2);
+drawModel(vertices, faces, uv, normal, frame1, texture);
+drawModel(vertices2, faces2, uv2, normal2, frame2, texture2);
 
-image.Mutate(x => x.Flip(FlipMode.Vertical)); 
-image.Save("output.png");
+frame1.Mutate(x => x.Flip(FlipMode.Vertical)); 
+frame1.Save("output.png");
 
-image2.Mutate(x => x.Flip(FlipMode.Vertical)); 
-image2.Save("output2.png");
+frame2.Mutate(x => x.Flip(FlipMode.Vertical)); 
+frame2.Save("output2.png");

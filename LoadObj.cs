@@ -53,18 +53,23 @@ namespace LoadObj
         public override readonly string ToString() => $"({X}, {Y})";
     }
 
+    public struct FaceVertex
+    {
+        public int V, Vt, Vn;
+    }
+
     public class ObjLoader
     {
-        public static (
+        public static(
             List<Vec3> vertices, 
-            List<int[]> faces, 
-            List<int[]> uvIndices, 
-            List<Vec2> uv
+            List<FaceVertex[]> faces, 
+            List<Vec2> uv,
+            List<Vec3> normal
         ) Parse(string objPath)
         {
             var vertices = new List<Vec3>();
-            var faces = new List<int[]>();
-            var uvIndices = new List<int[]>();
+            var faces = new List<FaceVertex[]>();
+            var normal = new List<Vec3>();
             var uv = new List<Vec2>();
 
             if (!File.Exists(objPath)) throw new FileNotFoundException("Obj not found at given path");
@@ -93,15 +98,15 @@ namespace LoadObj
                         Console.WriteLine("Skipped");
                         continue;
                     }
-                    int[] idx = new int[3];
-                    int[] uvIdx = new int[3];
+                    FaceVertex[] triangle = new FaceVertex[3];
                     for (int i = 0; i < 3; i++)
                     {
-                        idx[i] = int.Parse(parts[i+1].Split(['/'])[0]) - 1;
-                        uvIdx[i] = int.Parse(parts[i+1].Split(['/'])[1]) - 1;
+                        string[] subParts = parts[i+1].Split('/');
+                        triangle[i].V = int.Parse(subParts[0]) - 1;
+                        triangle[i].Vt = int.Parse(subParts[1]) - 1;
+                        triangle[i].Vn = int.Parse(subParts[2]) - 1;
                     }
-                    faces.Add(idx);
-                    uvIndices.Add(uvIdx);
+                    faces.Add(triangle);
                 } 
                 else if (parts[0] == "vt")
                 {
@@ -110,8 +115,16 @@ namespace LoadObj
                         double.Parse(parts[2], CultureInfo.InvariantCulture)
                     ));
                 }
+                else if (parts[0] == "vn")
+                {
+                    normal.Add(new Vec3(
+                        double.Parse(parts[1], CultureInfo.InvariantCulture),
+                        double.Parse(parts[2], CultureInfo.InvariantCulture),
+                        double.Parse(parts[3], CultureInfo.InvariantCulture)
+                    ));
+                }
             }
-            return (vertices, faces, uvIndices, uv);
+            return (vertices, faces, uv, normal);
         }
     }
 }
